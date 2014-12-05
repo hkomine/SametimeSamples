@@ -13,25 +13,26 @@ public abstract class AbstractImHandler implements ImHandler {
 	abstract public void showWelcomeMessage(ImEvent event);
 	abstract public void responseImText(ImEvent event, String rawMessage, String simplifiedMessage);
 
-	public void responseWithRT(Im imSession) {
+	public void responseBold(Im imSession, String message) {
 		// Send rich text acknowledgement
 		sendDataMessage(imSession, "data", "richtext", new byte[] { (byte) 0xEE} );
 		
 		// Format your rich text message as desired
 		String richTextStart = "<span style=\"font-size:8pt;font-family:Tahoma;color:#000000;font-style:normal;\" class=\"left\">";
 		String richTextEnd = "</span>";
-		String myRichTextMessage = "<b>Hello!</b>";
+		String myRichTextMessage = "<b>" + message + "</b>";
 		String messageToSend = richTextStart + myRichTextMessage + richTextEnd;
 		
 		imSession.sendText(true, messageToSend);
 	}
 	
-	public void sendMixed(Im im) {
+	public void sendMixed(Im im, String[] messages) {
 		// Send mixed content start indicator
 		sendDataMessage(im, "data", "command", new byte[] { (byte) 0xDE} );
 		// Send text
-		im.sendText(false, "First piece of text");
-		im.sendText(false, "Second piece of text");
+		for (int i=0; i<messages.length; i++) {
+			im.sendText(false, messages[i]);
+		}
 		// Send mixed content stop indicator
 		sendDataMessage(im, "data", "command", new byte[] { (byte) 0x82} );
 	}
