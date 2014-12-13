@@ -1,7 +1,8 @@
 package org.komine.raspi.camera;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
 
 import org.komine.sametime.stjava.bots.AbstractImHandler;
 
@@ -44,7 +45,8 @@ public class CameraImHandler extends AbstractImHandler {
 			sendMixed(event.getIm(), new String[] {"First piece of text", "Second piece of text"});
 		} else if (simplifiedMessage.equals("image")) {
 			try {
-				sendImage(event.getIm(), new File("images\\dummy.jpg"));
+				InputStream is = getClass().getClassLoader().getResourceAsStream("org/komine/raspi/camera/images/dummy.jpg");
+				sendImage(event.getIm(), is);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -52,18 +54,18 @@ public class CameraImHandler extends AbstractImHandler {
 		} else if (simplifiedMessage.equals("camera")) {
 			try {
 				Camera camera = new Camera(isDummy);
-				File file = camera.takePicture();
-				sendImage(event.getIm(), file);
-			} catch (IOException | CameraException | InterruptedException e) {
+				sendImage(event.getIm(), camera.takePicture());
+			} catch (IOException | CameraException | InterruptedException | URISyntaxException e) {
 				e.printStackTrace();
 				event.getIm().sendText(true, MSG_INTERNALFAILURE);
 			}
 		} else if (simplifiedMessage.equals("pizza")) {
 			try {
-				File file = Pizza.getPizzaFile();
-				sendImage(event.getIm(), file);
+				Pizza pizza = new Pizza();
+				InputStream is = pizza.getPizzaFile();
+				sendImage(event.getIm(), is);
 				responseBold(event.getIm(), "Nice pizza !");
-			} catch (IOException e) {
+			} catch (IOException | URISyntaxException e) {
 				e.printStackTrace();
 				event.getIm().sendText(true, MSG_INTERNALFAILURE);
 			}
@@ -72,7 +74,4 @@ public class CameraImHandler extends AbstractImHandler {
 			event.getIm().sendText(true, responseMessage);
 		}
 	}
-
-
-
 }

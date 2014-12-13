@@ -1,7 +1,10 @@
 package org.komine.raspi.camera;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -15,28 +18,30 @@ public class Camera {
 		}
 	}
 
-	public File takePicture() throws IOException, CameraException, InterruptedException {
-		File file;
+	public InputStream takePicture() throws IOException, CameraException, InterruptedException, URISyntaxException {
+		InputStream is;
 		if (!isDummy) {
-			file = generateFile("images", "jpg");
+			File file = generateFile("images", "jpg");
 			String output = file.getAbsolutePath();
 			execCommand("raspistill -w 300 -h 200 -o " + output);
+			is = new FileInputStream(checkFile(file));
 		} else {
-			file = new File("images\\dummy.jpg");
+			is = getClass().getClassLoader().getResourceAsStream("org/komine/raspi/camera/images/dummy.jpg");
 		}
-		return checkFile(file);
+		return is;
 	}
 
-	public File takeVideo(long timeout) throws IOException, CameraException, InterruptedException {
-		File file;
+	public InputStream takeVideo(long timeout) throws IOException, CameraException, InterruptedException, URISyntaxException {
+		InputStream is;
 		if (!isDummy) {
-			file = generateFile("images", "h264");
+			File file = generateFile("images", "h264");
 			String output = file.getAbsolutePath();
 			execCommand("raspivid -o " + output + " -t " + timeout);
+			is = new FileInputStream(checkFile(file));
 		} else {
-			file = new File("images\\dummy.h264");
+			is = getClass().getClassLoader().getResourceAsStream("org/komine/raspi/camera/images/dummy.h264");
 		}
-		return checkFile(file);
+		return is;
 	}
 
 	private void execCommand(String command) throws IOException, InterruptedException {
@@ -79,6 +84,7 @@ public class Camera {
 			throw new CameraException("File check failed with unkown reason.");
 		}
 	}
+	
 	private void println(Object o) {
 		if (o instanceof String) {
 			System.out.println((String) o);
@@ -87,16 +93,5 @@ public class Camera {
 		} else {
 			System.out.println(o.toString());
 		}
-	}
-	
-	public static void main(String[] args) throws Exception {
-		boolean isDummy = false;
-		if (args.length > 0 && 0 == args[0].compareTo("dummy")) {
-			isDummy = true;
-		}
-		
-		Camera camera = new Camera(isDummy);
-		File file = camera.takePicture();
-		System.out.println("File has been generated at " + file.getAbsolutePath());
 	}
 }

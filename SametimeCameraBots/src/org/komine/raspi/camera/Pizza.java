@@ -1,10 +1,11 @@
 package org.komine.raspi.camera;
 
-import java.io.File;
+import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.util.Random;
 
 public class Pizza {
-
+	
 	private static String[] imageFiles = {
 		"pizza_01.jpg",
 		"pizza_02.jpg",
@@ -17,16 +18,12 @@ public class Pizza {
 		"pizza_09.jpg",
 		"pizza_10.jpg",
 	};
-
-	public static File getPizzaFile() {
+	
+	public InputStream getPizzaFile() throws URISyntaxException {
 		Random rnd = new Random();
       	int index = rnd.nextInt(10);
-        
-        File file = new File("images\\pizza\\" + imageFiles[index]);
-        if (file.exists()) {
-        	return file;
-        } else {
-        	return null;
-        }
+
+      	InputStream is = getClass().getClassLoader().getResourceAsStream("org/komine/raspi/camera/images/pizza/" + imageFiles[index]);
+      	return is;
 	}
 }
