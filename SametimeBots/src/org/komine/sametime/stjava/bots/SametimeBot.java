@@ -29,24 +29,28 @@ import com.lotus.sametime.places.PlaceMemberEvent;
 import com.lotus.sametime.places.PlacesService;
 import com.lotus.sametime.places.PlacesServiceEvent;
 import com.lotus.sametime.places.PlacesServiceListener;
-import com.lotus.sametime.places.UserInPlace;
 
 public class SametimeBot implements ServiceListener, LoginListener, ImServiceListener, ImListener, PlaceListener, MyMsgListener, PlacesServiceListener, InvitationListener {
 	
 	private STSession session;
-	private CommunityService service;
+	private CommunityService commService;
 	private InstantMessagingService imService;
 	private PlacesService placesService;
 	private MyselfInPlace myselfPlace;
 	private InvitationManager invManage;
 	
 	private ImHandler imHandler;
+	private MyselfHandler myselfHandler;
 	
 	// Java Logger
 	final Logger logger = Logger.getLogger(SametimeBot.class.getSimpleName());
 	
 	public void setImHandler(ImHandler imHandler) {
 		this.imHandler = imHandler;
+	}
+	
+	public void setMyselfHandler(MyselfHandler myselfHandler) {
+		this.myselfHandler = myselfHandler;
 	}
 
 	public SametimeBot(String sessionName) throws DuplicateObjectException {
@@ -56,18 +60,18 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	}
 	
 	public void start(String server, String username, char[] password) {
-		service = (CommunityService) session.getCompApi(CommunityService.COMP_NAME);
-		service.addServiceListener(this);
+		commService = (CommunityService) session.getCompApi(CommunityService.COMP_NAME);
+		commService.addServiceListener(this);
 		login(server, username, password);
 	}
 
 	public void stop() {
-    	service.logout();
+    	commService.logout();
 	}
 
 	private void login(String server, String username, char[] password) {
-		service.addLoginListener(this);
-		service.loginByPassword(server, username, password);
+		commService.addLoginListener(this);
+		commService.loginByPassword(server, username, password);
 	}
 
 	public void enterPlace(String placeName) {
@@ -322,17 +326,7 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	 */
 	@Override
 	public void textReceived(MyselfEvent event) {
-		logger.info("Text received.");
-		UserInPlace sender = (UserInPlace) event.getSender();
-		if (!sender.getId().equals(myselfPlace.getId())) {
-			String receivedMessage = event.getText().trim();
-			String responseMessage = "Message received : "  + receivedMessage;
-			logger.info("Responding message is " + responseMessage);
-			myselfPlace.getPlace().sendText(responseMessage);
-
-		} else {
-			logger.info("It was my message.");
-		}
+		if (null != myselfHandler) myselfHandler.processTextReceived(myselfPlace, event);
 	}
 	
 	/*

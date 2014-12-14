@@ -67,7 +67,7 @@ public abstract class AbstractImHandler implements ImHandler {
 				}
 				
 			} else {
-				logger.warning("Unknown daatType/dataSubType: " + dataType + ", " + dataSubType);
+				logger.warning("Unknown dataType/dataSubType: " + dataType + ", " + dataSubType);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();

@@ -5,10 +5,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 
 import org.komine.sametime.stjava.bots.AbstractImHandler;
+import org.komine.sametime.stjava.bots.AbstractMyselfHandler;
 import org.komine.sametime.stjava.bots.SametimeBot;
 
 import com.lotus.sametime.core.comparch.DuplicateObjectException;
 import com.lotus.sametime.im.ImEvent;
+import com.lotus.sametime.places.MyselfEvent;
+import com.lotus.sametime.places.MyselfInPlace;
 
 public class SametimeBotTester {
 
@@ -35,7 +38,16 @@ public class SametimeBotTester {
 				@Override
 				public void responseImText(ImEvent event, String rawMessage, String simplifiedMessage) {
 					event.getIm().sendText(true, "Received: " + simplifiedMessage);
-				}});
+				}
+			});
+			service.setMyselfHandler(new AbstractMyselfHandler(service) {
+				
+				@Override
+				public void responseImText(MyselfInPlace myselfPlace, MyselfEvent event,
+						String receivedMessage) {
+					myselfPlace.getPlace().sendText("Received in place: " + receivedMessage);
+				}
+			});
 			
 			service.start(server, username, password);
 			System.out.println("Sametime Bot is Running. Press any key to terminate.");
