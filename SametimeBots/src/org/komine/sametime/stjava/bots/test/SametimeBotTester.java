@@ -25,7 +25,7 @@ public class SametimeBotTester {
 		String sessionName = "SametimeBot";
 		try {
 			SametimeBot service = new SametimeBot(sessionName);
-			service.setImHandler(new AbstractImHandler() {
+			service.setImHandler(new AbstractImHandler(service) {
 
 				@Override
 				public void showWelcomeMessage(ImEvent event) {

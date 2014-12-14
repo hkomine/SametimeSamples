@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.net.URISyntaxException;
 
 import org.komine.sametime.stjava.bots.AbstractImHandler;
+import org.komine.sametime.stjava.bots.SametimeBot;
 
 import com.lotus.sametime.im.ImEvent;
 
@@ -24,7 +25,8 @@ public class CameraImHandler extends AbstractImHandler {
 	
 	boolean isDummy = false;
 	
-	public CameraImHandler(boolean isDummy) {
+	public CameraImHandler(SametimeBot callback, boolean isDummy) {
+		super(callback);
 		this.isDummy = isDummy;
 	}
 	

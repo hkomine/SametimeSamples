@@ -28,7 +28,7 @@ public class SametimeCameraBot {
 		String sessionName = "SametimeBot";
 		try {
 			SametimeBot service = new SametimeBot(sessionName);
-			service.setImHandler(new CameraImHandler(isDummy));
+			service.setImHandler(new CameraImHandler(service, isDummy));
 			service.start(server, username, password);
 			System.out.println("Sametime Bot is Running. Press any key to terminate.");
 			BufferedReader br = new BufferedReader(new InputStreamReader(System.in));

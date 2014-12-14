@@ -1,11 +1,10 @@
 package org.komine.sametime.stjava.bots;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.logging.Logger;
 
+import com.lotus.sametime.chat.invitation.Invitation;
+import com.lotus.sametime.chat.invitation.InvitationListener;
+import com.lotus.sametime.chat.invitation.InvitationManager;
 import com.lotus.sametime.community.CommunityService;
 import com.lotus.sametime.community.LoginEvent;
 import com.lotus.sametime.community.LoginListener;
@@ -13,26 +12,45 @@ import com.lotus.sametime.community.ServiceEvent;
 import com.lotus.sametime.community.ServiceListener;
 import com.lotus.sametime.core.comparch.DuplicateObjectException;
 import com.lotus.sametime.core.comparch.STSession;
+import com.lotus.sametime.core.constants.EncLevel;
 import com.lotus.sametime.core.constants.ImTypes;
 import com.lotus.sametime.core.constants.STError;
 import com.lotus.sametime.im.ImEvent;
 import com.lotus.sametime.im.ImListener;
 import com.lotus.sametime.im.ImServiceListener;
 import com.lotus.sametime.im.InstantMessagingService;
+import com.lotus.sametime.places.MyMsgListener;
+import com.lotus.sametime.places.MyselfEvent;
+import com.lotus.sametime.places.MyselfInPlace;
+import com.lotus.sametime.places.Place;
+import com.lotus.sametime.places.PlaceEvent;
+import com.lotus.sametime.places.PlaceListener;
+import com.lotus.sametime.places.PlaceMemberEvent;
+import com.lotus.sametime.places.PlacesService;
+import com.lotus.sametime.places.PlacesServiceEvent;
+import com.lotus.sametime.places.PlacesServiceListener;
+import com.lotus.sametime.places.UserInPlace;
 
-public class SametimeBot implements ServiceListener, LoginListener, ImServiceListener, ImListener {
+public class SametimeBot implements ServiceListener, LoginListener, ImServiceListener, ImListener, PlaceListener, MyMsgListener, PlacesServiceListener, InvitationListener {
+	
 	private STSession session;
 	private CommunityService service;
 	private InstantMessagingService imService;
+	private PlacesService placesService;
+	private MyselfInPlace myselfPlace;
+	private InvitationManager invManage;
 	
 	private ImHandler imHandler;
+	
+	// Java Logger
+	final Logger logger = Logger.getLogger(SametimeBot.class.getSimpleName());
 	
 	public void setImHandler(ImHandler imHandler) {
 		this.imHandler = imHandler;
 	}
 
 	public SametimeBot(String sessionName) throws DuplicateObjectException {
-		session= new STSession(sessionName); 
+		session= new STSession(sessionName);            
 		session.loadSemanticComponents();
 		session.start();
 	}
@@ -52,17 +70,33 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 		service.loginByPassword(server, username, password);
 	}
 
-	/*
-	 * (non-Javadoc)
+	public void enterPlace(String placeName) {
+		logger.info("Entering place, " + placeName);
+		Place place = placesService.createPlace(placeName, placeName + "'s Place", EncLevel.ENC_LEVEL_RC2_40, 0);
+		place.addPlaceListener(this);
+		place.enter();
+	}
+	
+	public STSession getStSession() {
+		return session;
+	}
+	
+	/* (non-Javadoc)
 	 * @see com.lotus.sametime.community.LoginListener#loggedIn(com.lotus.sametime.community.LoginEvent)
 	 */
 	@Override
 	public void loggedIn(LoginEvent event) {
+		logger.info("Logged in");
+		
 		imService = (InstantMessagingService) session.getCompApi(InstantMessagingService.COMP_NAME);
 		imService.registerImType(ImTypes.IM_TYPE_CHAT);
 		imService.addImServiceListener(this);
 		
-	    printConsole("Logged In.");
+		invManage = new InvitationManager(session);
+		invManage.setListener(this);
+		
+		placesService = (PlacesService) session.getCompApi(PlacesService.COMP_NAME);
+		placesService.addPlacesServiceListener(this);
 	}
 
 	/*
@@ -73,9 +107,9 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	public void loggedOut(LoginEvent event) {
 	    int reason = event.getReason();
 	    if (reason == 0)
-	    	printConsole("Successfully logged out.");
+	    	logger.info("Successfully logged out.");
 	    else 
-	    	printConsole("Failed to login.  Return Code = " + reason + ", message = " + STError.getMessageString(reason));
+	    	logger.warning("Failed to login.  Return Code = " + reason + ", message = " + STError.getMessageString(reason));
 	    session.stop();
 	    session.unloadSession();
 	}
@@ -85,9 +119,7 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	 * @see com.lotus.sametime.community.ServiceListener#serviceAvailable(com.lotus.sametime.community.ServiceEvent)
 	 */
 	@Override
-	public void serviceAvailable(ServiceEvent arg0) {
-		// Do nothing
-	}
+	public void serviceAvailable(ServiceEvent event) { }
 
 	/*
 	 * (non-Javadoc)
@@ -95,9 +127,7 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	 */
 	@Override
 	public void imReceived(ImEvent event) {
-		printConsole("IM received.");
-		
-		debugImEvent(event);
+		logger.info("IM received.");
 
 		event.getIm().addImListener(this);
 		if (null != imHandler) {
@@ -111,10 +141,9 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	 */
 	@Override
 	public void dataReceived(ImEvent event) {
-		// Do nothing.
-		printConsole("Data received.");
-		
-		debugImEvent(event);
+		logger.info("Data received.");
+
+		if (null != imHandler) imHandler.processDataReceived(event);
 	}
 
 	/*
@@ -123,7 +152,7 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	 */
 	@Override
 	public void imClosed(ImEvent event) {
-		printConsole("IM Closed.");
+		logger.info("IM Closed.");
 		event.getIm().removeImListener(this);
 	}
 
@@ -133,8 +162,7 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	 */
 	@Override
 	public void imOpened(ImEvent event) {
-		// Do nothing.
-		printConsole("IM opened.");
+		logger.info("IM opened.");
 	}
 
 	/*
@@ -142,9 +170,7 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	 * com.lotus.sametime.im.ImListener
 	 */
 	@Override
-	public void openImFailed(ImEvent event) {
-		printConsole("IM open failed.");
-	}
+	public void openImFailed(ImEvent event) { }
 
 	/*
 	 * (non-Javadoc)
@@ -153,87 +179,180 @@ public class SametimeBot implements ServiceListener, LoginListener, ImServiceLis
 	@Override
 	public void textReceived(ImEvent event) {
 		String rawMessage = event.getText();
-		printConsole("Text received. raw message = " + rawMessage);
-		
-		debugImEvent(event);
-		
-		String simplifiedMessage = simplifyText(rawMessage);
-		printConsole("Simplified message = " + simplifiedMessage);
-		
-		if (null != imHandler) {
-			imHandler.responseImText(event, rawMessage, simplifiedMessage);
-		}
-	}
-	
-	private class ImDataParser {
-		String messageType = null;
-		String messageSubType = null;
-		byte[] messageBytes = null;
-		
-		public ImDataParser(byte[] bytes) throws IOException {
-			if (null != bytes) {
-				ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-				DataInputStream dataStream = new DataInputStream(bais);
-				
-				messageType = dataStream.readUTF();				
-				messageSubType = dataStream.readUTF();
-				
-				int count = dataStream.available();
-				messageBytes = new byte[count];
-				dataStream.read(messageBytes);
-			}
-		}
-		
-		public String getMessageType() {
-			return messageType;
-		}
-		
-		public String getMessageSubType() {
-			return messageSubType;
-		}
-		
-		public byte[] getMessagebytes() {
-			return messageBytes;
-		}
-	}
-	/*
-	 * http://stackoverflow.com/questions/3607965/how-to-convert-html-text-to-plain-text
-	 */
-	private String simplifyText(String htmlString) {
-		return htmlString.replaceAll("\\<.*?\\>", "");
-	}
-	
-	private void debugImEvent(ImEvent event) {
-		printConsole("DataType is " + event.getDataType());
-		printConsole("DataSubType is " + event.getDataSubType());
-		printConsole("Text is " + event.getText());
-		
-		byte[] bytes = event.getData();
-		if (null != bytes) {
-			try {
-				ImDataParser parser = new ImDataParser(bytes);
-				printConsole("messageType is " + parser.getMessageType());
-				printConsole("messageSubType is " + parser.getMessageSubType());
-				StringBuffer buf = new StringBuffer("messageBytes is ");
-				for (byte b : parser.getMessagebytes()) {
-					buf.append(String.format(" %X", b));
-				}
-				printConsole(buf.toString());
-			} catch (IOException e) {
-				printConsole(e);
-			}
-		} else {
-			printConsole("Data is null.");
-		}
-	}
-	
-	private static final SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy/MM/dd hh:mm:ss");
-	
-	private static void printConsole(String message) {
-		System.out.println(dateFormatter.format(new Date()) + " " + message);
+		logger.info("Text received. raw message = " + rawMessage);
+		if (null != imHandler) imHandler.processTextReceived(event);
 	}
 
-	private static void printConsole(Exception e) {
-		e.printStackTrace();
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceMemberListener#attributeChanged(com.lotus.sametime.places.PlaceMemberEvent)
+	 */
+	@Override
+	public void attributeChanged(PlaceMemberEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceMemberListener#attributeRemoved(com.lotus.sametime.places.PlaceMemberEvent)
+	 */
+	@Override
+	public void attributeRemoved(PlaceMemberEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceMemberListener#changeAttributeFailed(com.lotus.sametime.places.PlaceMemberEvent)
+	 */
+	@Override
+	public void changeAttributeFailed(PlaceMemberEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceMemberListener#queryAttrContentFailed(com.lotus.sametime.places.PlaceMemberEvent)
+	 */
+	@Override
+	public void queryAttrContentFailed(PlaceMemberEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceMemberListener#removeAttributeFailed(com.lotus.sametime.places.PlaceMemberEvent)
+	 */
+	@Override
+	public void removeAttributeFailed(PlaceMemberEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceMemberListener#sendFailed(com.lotus.sametime.places.PlaceMemberEvent)
+	 */
+	@Override
+	public void sendFailed(PlaceMemberEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#activityAdded(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void activityAdded(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#activityRemoved(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void activityRemoved(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#addActivityFailed(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void addActivityFailed(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#addAllowedUsersFailed(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void addAllowedUsersFailed(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#enterFailed(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void enterFailed(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#entered(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void entered(PlaceEvent event) {
+		Place place = event.getPlace();
+		logger.info("Entered the place: " + place.getName());
+
+		// todo
+		myselfPlace = place.getMyselfInPlace();
+		myselfPlace.addMyMsgListener(this);
 	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#invite15UserFailed(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void invite15UserFailed(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#left(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void left(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#removeAllowedUsersFailed(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void removeAllowedUsersFailed(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#sectionAdded(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void sectionAdded(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlaceListener#sectionRemoved(com.lotus.sametime.places.PlaceEvent)
+	 */
+	@Override
+	public void sectionRemoved(PlaceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.MyMsgListener#dataReceived(com.lotus.sametime.places.MyselfEvent)
+	 */
+	@Override
+	public void dataReceived(MyselfEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.MyMsgListener#textReceived(com.lotus.sametime.places.MyselfEvent)
+	 */
+	@Override
+	public void textReceived(MyselfEvent event) {
+		logger.info("Text received.");
+		UserInPlace sender = (UserInPlace) event.getSender();
+		if (!sender.getId().equals(myselfPlace.getId())) {
+			String receivedMessage = event.getText().trim();
+			String responseMessage = "Message received : "  + receivedMessage;
+			logger.info("Responding message is " + responseMessage);
+			myselfPlace.getPlace().sendText(responseMessage);
+
+		} else {
+			logger.info("It was my message.");
+		}
+	}
+	
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlacesServiceListener#serviceAvailable(com.lotus.sametime.places.PlacesServiceEvent)
+	 */
+	@Override
+	public void serviceAvailable(PlacesServiceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.places.PlacesServiceListener#serviceUnavailable(com.lotus.sametime.places.PlacesServiceEvent)
+	 */
+	@Override
+	public void serviceUnavailable(PlacesServiceEvent event) { }
+
+	/*
+	 * (non-Javadoc)
+	 * @see com.lotus.sametime.chat.invitation.InvitationListener#invitedToMeeting(com.lotus.sametime.chat.invitation.Invitation)
+	 */
+	@Override
+	public void invitedToMeeting(Invitation event) {}
 }

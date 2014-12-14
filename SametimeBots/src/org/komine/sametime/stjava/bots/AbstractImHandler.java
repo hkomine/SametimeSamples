@@ -13,14 +13,67 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.logging.Logger;
+
+import org.komine.sametime.stjava.bots.data.MessageTypeDataParser;
+import org.komine.sametime.stjava.bots.data.PlaceInvitationDataParser;
 
 import com.lotus.sametime.im.Im;
 import com.lotus.sametime.im.ImEvent;
 
 public abstract class AbstractImHandler implements ImHandler {
+
+	SametimeBot callback;
+	
+	// Java Logger
+	final Logger logger = Logger.getLogger(AbstractImHandler.class.getSimpleName());
+	
+	public AbstractImHandler(SametimeBot callback) {
+		this.callback = callback;
+	}
+	
 	abstract public void showWelcomeMessage(ImEvent event);
 	abstract public void responseImText(ImEvent event, String rawMessage, String simplifiedMessage);
 
+	public void processTextReceived(ImEvent event) {
+		String rawMessage = event.getText();
+		String simplifiedMessage = simplifyText(rawMessage);
+		responseImText(event, rawMessage, simplifiedMessage);
+	}
+	
+	public void processDataReceived(ImEvent event) {
+		int dataType = event.getDataType();
+		int dataSubType = event.getDataSubType();
+		String text = event.getText();
+		logger.info("DataType is " + dataType);
+		logger.info("DataSubType is " + dataSubType);
+		logger.info("Text is " + text);
+
+		try{
+			byte[] bytes = event.getData();
+	
+			if ((27191 == dataType) && (0 == dataSubType)) { // Receiving message type
+				MessageTypeDataParser parser = new MessageTypeDataParser();
+				parser.parse(bytes);
+				
+			} else if ((10 == dataType) && (1 == dataSubType)) { // Invitation to n-way chat
+				PlaceInvitationDataParser parser = new PlaceInvitationDataParser();
+				parser.parse(bytes);
+				
+				String placeName = parser.getPlaceName();
+				
+				if (null != callback) {
+					callback.enterPlace(placeName);
+				}
+				
+			} else {
+				logger.warning("Unknown daatType/dataSubType: " + dataType + ", " + dataSubType);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
 	public void responseBold(Im im, String message) {
 		// Send rich text acknowledgement
 		sendDataMessage(im, "data", "richtext", new byte[] { (byte) 0xEE} );
@@ -100,5 +153,12 @@ public abstract class AbstractImHandler implements ImHandler {
 			throw new AssertionError("sendDataMessage failed");
 		}
 		im.sendData(true, 27191, 0, baos.toByteArray());
+	}
+	
+	/*
+	 * Remove HTML tags from rich text
+	 */
+	private String simplifyText(String htmlString) {
+		return htmlString.replaceAll("\\<.*?\\>", "");
 	}
 }
